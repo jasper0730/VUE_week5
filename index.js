@@ -17,13 +17,16 @@ VeeValidate.configure({
 const app = Vue.createApp({
     data() {
         return {
+            isLoading: false,
             cartData: {
-                carts:{},  //若無預設carts,載入網頁時,html的cartData.cart還沒載入,會噴錯因為找不到這個屬性
+                carts: {},  //若無預設carts,載入網頁時,html的cartData.cart還沒載入,會噴錯因為找不到這個屬性
             },
             products: [],
             productId: '',
-            isLoading: '',
-            form:{
+            loadingStatus: {
+                loadingItem: '',
+            },
+            form: {
                 user: {
                     name: '',
                     email: '',
@@ -60,30 +63,34 @@ const app = Vue.createApp({
                 })
         },
         addToCart(id, qty = 1) {
+            this.isLoading = true;
+            this.loadingStatus.loadingItem = id;
             const url = `${apiUrl}/api/${apiPath}/cart`
             const data = {
                 product_id: id,
                 qty,
             };
-            this.isLoading = id;
             this.$refs.productModal.hideModal();
             axios.post(url, { data })
                 .then((res) => {
                     this.getCartList();
-                    this.isLoading = '';
+                    this.loadingStatus.loadingItem = '';
+                    alert(res.data.message)
+                    this.isLoading = false;
                 })
                 .catch((err) => {
                     alert(err.data.message);
                 })
         },
         deleteCartItem(id) {
+            this.isLoading = true;
             const url = `${apiUrl}/api/${apiPath}/cart/${id}`;
-            this.isLoading = id;
-
+            this.loadingStatus.loadingItem = id;
             axios.delete(url)
                 .then((res) => {
                     this.getCartList()
-                    this.isLoading = '';
+                    this.loadingStatus.loadingItem = '';
+                    this.isLoading = false;
                     alert('刪除成功');
                 })
                 .catch((err) => {
@@ -91,46 +98,55 @@ const app = Vue.createApp({
                 })
         },
         cleanCart() {
+            this.isLoading = true;
             const url = `${apiUrl}/api/${apiPath}/carts`;
             axios.delete(url)
                 .then((res) => {
                     this.getCartList();
                     alert('清空購物車完成');
+                    this.isLoading = false;
                 })
                 .catch((err) => {
                     alert(err.data.message);
                 })
         },
         updateData(item) {
-            const url = `${apiUrl}/api/${apiPath}/cart/${item.id}`;
-            this.isLoading = item.id;
-            axios.put(url, {
-                data: {
-                    product_id: item.product_id,
-                    qty: item.qty,
-                },
-            })
-                .then((res) => {
-                    this.getCartList();
-                    this.isLoading = '';
+            if (item.qty > 0) {
+                this.isLoading = true;
+                const url = `${apiUrl}/api/${apiPath}/cart/${item.id}`;
+                axios.put(url, {
+                    data: {
+                        product_id: item.product_id,
+                        qty: item.qty,
+                    },
                 })
-                .catch((err) => {
-                    alert(err.data.message);
-                    this.isLoading = '';
-                });
+                    .then((res) => {
+                        this.getCartList();
+                        this.isLoading = false;
+                    })
+                    .catch((err) => {
+                        alert(err.data.message);
+                    });
+            }
         },
         createOrder() {
+            this.isLoading = true;
             const url = `${apiUrl}/api/${apiPath}/order`;
             const data = this.form;
             axios.post(url, { data })
                 .then((res) => {
                     alert(res.data.message);
-                    this.refs.form.resetForm(); //這邊清空的是dom元素的,resetForm()是veevalidate的方法
+                    this.$refs.form.resetForm(); //這邊清空的是dom元素的,resetForm()是veevalidate的方法
                     this.getCartList();
+                    this.isLoading = false;
                 })
                 .catch((err) => {
                     alert(err.data.message);
                 });
+        },
+        isPhone(value) {
+            const phoneNumber = /^(09)[0-9]{8}$/
+            return phoneNumber.test(value) ? true : '需要正確的電話號碼'
         },
     },
     mounted() {
@@ -139,6 +155,8 @@ const app = Vue.createApp({
     },
 });
 // 全域註冊
+app.use(VueLoading.Plugin);
+app.component('loading', VueLoading.Component);
 app.component('VForm', VeeValidate.Form)
 app.component('VField', VeeValidate.Field)
 app.component('ErrorMessage', VeeValidate.ErrorMessage)
@@ -159,6 +177,7 @@ app.component('product-modal', {
     },
     methods: {
         openModal() {
+            this.qty = 1;
             this.myModal.show();
         },
         hideModal() {
